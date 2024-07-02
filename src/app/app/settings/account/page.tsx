@@ -1,6 +1,14 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious
+} from '@/components/ui/carousel';
 import {
   Form,
   FormControl,
@@ -19,9 +27,10 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFieldArray, useForm } from 'react-hook-form';
+import Image from 'next/image';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { INDUSTRIES } from './constants';
@@ -35,36 +44,51 @@ const profileFormSchema = z.object({
   style: z.string({
     required_error: "Please select the Business' Style."
   }),
-  urls: z
-    .array(
-      z.object({
-        value: z.string().url({ message: 'Please enter a valid URL.' })
-      })
-    )
-    .optional()
+  images: z.instanceof(FileList).optional()
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 export default function AccountSettingsPage() {
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
-    mode: 'onChange'
-  });
-
-  const { fields, append } = useFieldArray({
-    name: 'urls',
-    control: form.control
+    mode: 'onChange',
+    defaultValues: {
+      'business-name': '',
+      'business-description': '',
+      industry: '',
+      style: '',
+      images: new DataTransfer().files
+    }
   });
 
   function onSubmit(data: ProfileFormValues) {
+    const images = Array.from(data.images || []).map(file => file.name);
+    const formData = { ...data, images };
+
+    console.log(`data ${JSON.stringify(formData, null, 2)}`);
     toast('You submitted the following values:', {
       description: (
         <pre className='mt-2 w-[340px] rounded-md bg-slate-950 p-4'>
-          <code className='text-white'>{JSON.stringify(data, null, 2)}</code>
+          <code className='text-white'>
+            {JSON.stringify(formData, null, 2)}
+          </code>
         </pre>
       )
     });
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (files) {
+      const imageUrls = Array.from(files).map(file =>
+        URL.createObjectURL(file)
+      );
+      setSelectedImages(imageUrls);
+      form.setValue('images', files);
+    }
   }
 
   return (
@@ -165,39 +189,59 @@ export default function AccountSettingsPage() {
               </FormItem>
             )}
           />
-          <div>
-            {fields.map((field, index) => (
-              <FormField
-                control={form.control}
-                key={field.id}
-                name={`urls.${index}.value`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className={cn(index !== 0 && 'sr-only')}>
-                      URLs
-                    </FormLabel>
-                    <FormDescription className={cn(index !== 0 && 'sr-only')}>
-                      Add links to your website, blog, or social media profiles.
-                    </FormDescription>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ))}
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              className='mt-2'
-              onClick={() => append({ value: '' })}
-            >
-              Add URL
-            </Button>
+          <div className='grid w-full items-center gap-1.5'>
+            <FormField
+              control={form.control}
+              name='images'
+              render={({}) => (
+                <FormItem>
+                  <FormLabel>Business Logos</FormLabel>
+                  <FormControl>
+                    <Input type='file' multiple onChange={handleImageChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
-          <Button type='submit'>Update profile</Button>
+          {selectedImages.length > 0 && (
+            <div className='mt-4'>
+              <Carousel
+                opts={{
+                  align: 'start'
+                }}
+                className='w-full'
+              >
+                <CarouselContent>
+                  {selectedImages.map((image, index) => (
+                    <CarouselItem
+                      key={index}
+                      className='md:basis-1/2 lg:basis-1/3'
+                    >
+                      <div className='p-1'>
+                        <Card>
+                          <CardContent className='flex aspect-square items-center justify-center p-6'>
+                            <div className='relative w-full h-60'>
+                              <Image
+                                key={index}
+                                src={image}
+                                alt={`Preview ${index}`}
+                                fill
+                                style={{ objectFit: 'contain' }}
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious type='button' />
+                <CarouselNext type='button' />
+              </Carousel>
+            </div>
+          )}
+          <Button type='submit'>Save</Button>
         </form>
       </Form>
     </div>
